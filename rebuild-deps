@@ -1,0 +1,25 @@
+#!/bin/sh
+
+# Finds packages depending on package $1 
+# which has been upgraded to version $2
+# breaking ABI, and rebuild them all
+
+# Run from aport root
+
+_pkgupd="$1"
+_pkgverupd="$2"
+
+test -z "$1" && exit 1
+test -z "$2" && exit 1
+
+find . -iname APKBUILD -exec grep -l -e "$_pkgupd-dev" {} \; > apkbuild-list
+
+for apkbuild in $(cat apkbuild-list); do
+	. $apkbuild
+	pkgrel=$(($pkgrel+1))
+	sed -i "s/pkgrel=[0-9]*/pkgrel=$pkgrel/" $apkbuild || exit 1
+	repo_pkg="${apkbuild%/APKBUILD}"
+	repo_pkg="${repo_pkg#./}"
+	cd $repo_pkg && abuild -r && git commit -a -m "$repo_pkg: rebuild against $_pkgupd-$_pkgverupd" && cd ../..
+done
+
